@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8" />
+    <title>Darmstadt kocht! - Karte</title>
+    
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Darmstadt kocht!">
+    <meta name="theme-color" content="#6e4a80">
+    
+    <link rel="icon" href="https://darmstadtkocht.de/wp-content/uploads/2025/04/cropped-dako2-192x192.png" sizes="192x192">
+    <link rel="apple-touch-icon" href="https://darmstadtkocht.de/wp-content/uploads/2025/04/cropped-dako2-180x180.png">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --dk-purple: #6e4a80;
+            --dk-green: #7bc06f;
+            --dk-bg: #f9f7f5;
+            --dk-header-bg: #f4ece7;
+            --dk-text: #333;
+        }
+
+        html, body {
+            height: 100%; width: 100%; margin: 0; padding: 0; overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--dk-bg); display: flex; flex-direction: column;
+        }
+        #map { flex: 1; width: 100%; z-index: 1; }
+
+        #station-list-container {
+            height: 40vh; min-height: 45px; max-height: 90vh;
+            background: white; box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+            display: flex; flex-direction: column; z-index: 1000; position: relative;
+            transition: height 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            border-top: 4px solid var(--dk-purple);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        #station-list-container.collapsed { height: 45px !important; border-top: none; }
+
+        #list-handle {
+            height: 45px; background: var(--dk-header-bg); border-bottom: 1px solid #e0e0e0;
+            display: flex; justify-content: center; align-items: center;
+            cursor: row-resize; font-size: 13px; font-weight: bold; color: #888;
+            flex-shrink: 0; touch-action: none; user-select: none;
+        }
+        .handle-bar { width: 40px; height: 5px; background: #ccc; border-radius: 3px; margin-right: 10px; }
+        #station-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 80px; }
+
+        .list-item {
+            background: white; margin: 8px 10px; padding: 12px;
+            border-radius: 8px; border: 1px solid #eee; cursor: pointer;
+            border-left: 5px solid var(--dk-purple);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        
+        .list-info-wrapper { display: flex; align-items: center; flex: 1; min-width: 0; }
+        .list-ruebe-icon { width: 32px; height: 32px; margin-right: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+        
+        .list-content h3 { margin: 0 0 4px 0; color: var(--dk-purple); font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .list-meta { font-size: 11px; color: var(--dk-green); font-weight: bold; text-transform: uppercase; }
+        .list-details { font-size: 13px; color: #666; line-height: 1.4; }
+
+        .list-action-btn {
+            width: 40px; height: 40px; border-radius: 50%;
+            background-color: var(--dk-green);
+            display: flex; justify-content: center; align-items: center;
+            margin-left: 10px; text-decoration: none; flex-shrink: 0;
+        }
+        .list-action-btn svg { width: 20px; height: 20px; fill: white; }
+
+        .custom-pin-icon { background: none; border: none; }
+        .ruebe-marker-svg { width: 100%; height: 100%; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3)); }
+        
+        .navi-btn-popup { 
+            display: inline-block; margin-top: 8px; padding: 6px 12px; 
+            text-decoration: none; border-radius: 4px; font-size: 13px; font-weight: bold; 
+            color: white; background-color: var(--dk-green) !important; 
+        }
+
+        .locate-btn {
+            background: white; width: 34px; height: 34px; display: none;
+            justify-content: center; align-items: center; cursor: pointer;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.4); border-radius: 4px; border: 2px solid rgba(0,0,0,0.2);
+            background-clip: padding-box;
+        }
+        .locate-btn.visible { display: flex; }
+        .locate-btn svg { width: 20px; height: 20px; fill: #444; }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="station-list-container">
+    <div id="list-handle">
+        <div class="handle-bar"></div> <span id="handle-text">▼ Karte vergrößern</span>
+    </div>
+    <div id="station-list"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    const gangs = ["Vorspeise", "Hauptgang", "Dessert", "Party"];
+    const times = ["18:00", "19:30", "21:30", "ab 23:00"];
+
+    function getRuebeMarkerHtml(label) {
+        return `<svg class="ruebe-marker-svg" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+            <path fill="var(--dk-purple)" stroke="#ffffff" stroke-width="4" stroke-linejoin="round" d="M62.24,169.04 C66.91,170.15 71.62,170.99 76.36,171.77 C87.77,173.64 99.51,175.03 107.16,185.64 C109.43,188.79 112.29,187.87 113.54,183.67 C115.48,177.19 119.56,172.37 124.53,168.06 C128.84,164.31 133.91,161.85 138.8,159.05 C149.66,152.83 159,145.03 160.41,131.65 C161.84,118.17 159.17,105.16 153,93.02 C150.08,87.3 145.99,82.54 140.12,79.6 C129.79,74.43 119.91,77.01 110,81.16 C105.61,83 101.96,86.48 96.44,87.89 C98.66,79.45 104.99,77.7 111.06,75.57 C118.1,73.11 125.78,72.8 132.46,69.19 C136.2,67.17 137.28,63.87 136.23,59.85 C135.12,55.56 132.05,54.01 127.91,54.48 C125.67,54.73 123.47,55.44 120.6,56.1 C122.01,53.76 122.93,51.98 124.49,50.46 C129.65,45.43 134.12,39.81 136.68,33.01 C138.07,29.3 139.18,25.08 135.46,21.96 C131.77,18.85 127.93,20.58 124.3,22.51 C123.57,22.89 122.93,23.46 122.31,24 C119.87,26.12 117.45,28.26 114.73,30.65 C114.29,28.5 114.94,27.02 115.59,25.5 C117.18,21.77 117.84,17.88 117.61,13.82 C117.27,7.71 113.83,4.43 107.69,4.38 C99.92,4.31 94.99,9.07 94.46,17.51 C94.26,20.68 93.74,23.68 92.75,26.75 C90.48,25.4 90.99,23.16 90.37,21.36 C89.72,19.49 88.72,17.72 87.73,15.99 C85,11.19 80.56,9.35 74.97,10.63 C70.34,11.69 67.47,15.58 67.39,20.99 C67.34,24.35 67.38,27.71 67.38,31.55 C64.53,30.17 64.2,28.25 63.3,26.72 C61.46,23.58 59.94,20.2 56.67,18.15 C52.69,15.66 44.87,15.66 41.43,18.26 C36.96,21.62 37.95,26.29 39.03,30.59 C39.82,33.76 41.55,36.71 44.16,39.01 C45.51,40.2 47.24,41.3 47.66,44.06 C42.1,42.12 37.27,39.93 31.77,40.36 C24.85,40.89 22.28,45.72 25.85,51.82 C28.14,55.75 31.98,57.78 35.51,60.24 C40.7,63.85 47.11,65.39 52.86,70.14 C50.02,70.28 48.21,70.29 46.42,70.48 C41.44,71.02 38.59,73.67 38.43,77.8 C38.26,82.13 41.62,85.96 46.4,86.5 C49.02,86.8 51.68,86.73 54.34,86.19 C61.49,84.74 68.66,83.27 76.04,83.64 C81.93,83.94 84.62,86.07 85.14,91.31 C77.77,88.88 70.28,89.29 62.83,89.44 C49.7,89.71 40.03,98.4 37.15,110.88 C33.98,124.66 36.8,137.57 41.54,150.23 C45.01,159.49 51.54,166.13 62.24,169.04 Z"/>
+            <text x="100" y="145" font-family="Arial, sans-serif" font-size="52" font-weight="bold" fill="white" text-anchor="middle">${label}</text>
+        </svg>`;
+    }
+
+    function getNaviAction(lat, lon, addr) {
+        const query = addr ? encodeURIComponent(addr) : `${lat},${lon}`;
+        const ua = navigator.userAgent;
+        if (/android/i.test(ua)) return { url: `geo:0,0?q=${query}`, text: '➔ Navigation' };
+        if (/iPad|iPhone|iPod/.test(ua)) return { url: `http://maps.apple.com/?daddr=${query}&dirflg=w`, text: ' Karten' };
+        return { url: `https://graphhopper.com/maps/?point=&point=${query}`, text: 'Navigation' };
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    let shortData;
+    try { shortData = JSON.parse(params.get('data')); } catch(e) {}
+
+    if (shortData) {
+        const map = L.map('map', { zoomControl: true });
+        window.map = map;
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        let userLocMarker, userLocCircle, locateBtnElement;
+
+        const LocateControl = L.Control.extend({
+            options: { position: 'topleft' },
+            onAdd: function() {
+                const btn = L.DomUtil.create('div', 'locate-btn');
+                btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>`;
+                btn.onclick = () => { if(userLocMarker) map.setView(userLocMarker.getLatLng(), 17); };
+                locateBtnElement = btn;
+                return btn;
+            }
+        });
+        map.addControl(new LocateControl());
+
+        map.on('locationfound', (e) => {
+            const radius = e.accuracy / 2;
+            if (locateBtnElement) locateBtnElement.classList.add('visible');
+            if (!userLocMarker) {
+                userLocMarker = L.marker(e.latlng).addTo(map);
+                userLocCircle = L.circle(e.latlng, radius).addTo(map);
+            } else {
+                userLocMarker.setLatLng(e.latlng);
+                userLocCircle.setLatLng(e.latlng).setRadius(radius);
+            }
+        });
+        map.locate({ watch: true, setView: false, enableHighAccuracy: true });
+
+        const features = shortData.map((item, i) => ({
+            type: "Feature",
+            geometry: { type: "Point", coordinates: item.point },
+            properties: { addr: item.addr, desc: item.desc, num: i + 1, name: gangs[i], time: times[i], label: (i === 3 ? "P" : i + 1) }
+        }));
+
+        const coords = features.map(f => [f.geometry.coordinates[1], f.geometry.coordinates[0]]);
+        L.polyline(coords, { color: '#555', weight: 3, dashArray: '5, 10' }).addTo(map);
+
+        const layer = L.geoJSON({ type: "FeatureCollection", features }, {
+            pointToLayer: (f, latlng) => {
+                return L.marker(latlng, { 
+                    icon: L.divIcon({ 
+                        className: 'custom-pin-icon', 
+                        html: getRuebeMarkerHtml(f.properties.label),
+                        iconSize: [45, 45], iconAnchor: [22.5, 43], popupAnchor: [0, -38]
+                    }) 
+                });
+            },
+            onEachFeature: (f, l) => {
+                const nav = getNaviAction(f.geometry.coordinates[1], f.geometry.coordinates[0], f.properties.addr);
+                l.bindPopup(`<strong>${f.properties.name}</strong><br>${f.properties.time}<br>${f.properties.addr || ''}<br><i style="font-size:12px;color:#666">${f.properties.desc || ''}</i><br><a href="${nav.url}" target="_blank" class="navi-btn-popup">${nav.text}</a>`);
+            }
+        }).addTo(map);
+
+        map.fitBounds(layer.getBounds(), { padding: [50, 50] });
+
+        const list = document.getElementById('station-list');
+        const pinIconSvg = `<svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;
+
+        list.innerHTML = features.map(f => {
+            const nav = getNaviAction(f.geometry.coordinates[1], f.geometry.coordinates[0], f.properties.addr);
+            return `<div class="list-item" onclick="map.setView([${f.geometry.coordinates[1]}, ${f.geometry.coordinates[0]}], 17)">
+                <div class="list-info-wrapper">
+                    <div class="list-ruebe-icon">${getRuebeMarkerHtml(f.properties.label)}</div>
+                    <div class="list-content">
+                        <div class="list-meta">${f.properties.time}</div>
+                        <h3>${f.properties.name}</h3>
+                        <div class="list-details">${f.properties.addr ? f.properties.addr + '<br>' : ''}<i style="color:#888">${f.properties.desc || ''}</i></div>
+                    </div>
+                </div>
+                <a href="${nav.url}" target="_blank" class="list-action-btn" onclick="event.stopPropagation()">${pinIconSvg}</a>
+            </div>`;
+        }).join('');
+    }
+
+    const container = document.getElementById('station-list-container');
+    const handle = document.getElementById('list-handle');
+    const handleText = document.getElementById('handle-text');
+    let isDragging = false, startY = 0, startHeight = 0;
+
+    handle.addEventListener('touchstart', startDrag, { passive: false });
+    window.addEventListener('touchmove', doDrag, { passive: false });
+    window.addEventListener('touchend', endDrag);
+    handle.addEventListener('mousedown', startDrag);
+    window.addEventListener('mousemove', doDrag);
+    window.addEventListener('mouseup', endDrag);
+
+    function startDrag(e) {
+        startY = e.touches ? e.touches[0].clientY : e.clientY;
+        startHeight = container.getBoundingClientRect().height;
+        isDragging = true; container.style.transition = 'none';
+        if(e.cancelable) e.preventDefault();
+    }
+    function doDrag(e) {
+        if (!isDragging) return;
+        const currentY = e.touches ? e.touches[0].clientY : e.clientY;
+        const newHeight = startHeight + (startY - currentY);
+        if (newHeight >= 45 && newHeight < window.innerHeight - 50) {
+            container.style.height = newHeight + 'px'; container.classList.remove('collapsed');
+        }
+    }
+    function endDrag(e) {
+        if (!isDragging) return; isDragging = false;
+        container.style.transition = 'height 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
+        const h = container.getBoundingClientRect().height;
+        if (Math.abs(h - startHeight) < 5) toggleList();
+        else if (h < 150) collapseList();
+        else openListState();
+        setTimeout(() => { if(window.map) window.map.invalidateSize(); }, 350);
+    }
+    function collapseList() { container.classList.add('collapsed'); container.style.height = ''; handleText.innerText = "▲ Stationen anzeigen"; }
+    function openListState() { container.classList.remove('collapsed'); handleText.innerText = "▼ Karte vergrößern"; }
+    function toggleList() { container.classList.contains('collapsed') ? openListState() : collapseList(); }
+</script>
+</body>
+</html>
