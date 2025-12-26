@@ -1,10 +1,11 @@
-const CACHE_NAME = 'dako-map-v33';
+const CACHE_NAME = 'dako-map-v38';
 const TILE_CACHE = 'dako-tiles-v1';
 
 // Dateien, die für die Grundfunktion notwendig sind
 const STATIC_ASSETS = [
     './',
     './index.htm',
+    './maps.htm',
     './manifest.json',
     './css/style.css',
     './js/map.js',
@@ -72,6 +73,8 @@ self.addEventListener('fetch', (event) => {
 
     // 2. Strategie für alles andere: Network First, Fallback auf Cache (für Offline-Modus)
     event.respondWith(
-        fetch(event.request).catch(() => caches.match(event.request))
+        fetch(event.request).catch(() => {
+            return caches.match(event.request, { ignoreSearch: true });
+        })
     );
 });

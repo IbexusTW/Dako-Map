@@ -62,7 +62,7 @@ if (shortData) {
     const initMapApp = () => {
         const map = L.map('map', { 
             zoomControl: true,
-            minZoom: 13, // Genug Übersicht für Griesheim <-> DA
+            minZoom: 11, // Genug Übersicht für Griesheim <-> DA
             maxZoom: 18, // Straßenebene, spart die ganz tiefen Zoom-Tiles
             maxBounds: [[49.79, 8.52], [49.925, 8.76]], // Griesheim/Eberstadt bis Arheilgen (ohne Wixhausen)
             maxBoundsViscosity: 1.0 // Harte Grenze, lässt sich nicht wegziehen
