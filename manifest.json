@@ -1,7 +1,8 @@
 {
   "name": "Darmstadt kocht!",
   "short_name": "DaKo Map",
-  "start_url": "./maps.htm",
+  "start_url": "./index.htm",
+  "scope": "/map/",
   "display": "standalone",
   "background_color": "#f9f7f5",
   "theme_color": "#6e4a80",

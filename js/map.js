@@ -4,8 +4,8 @@ const times = ["18:00", "19:30", "21:30", "ab 23:00"];
 // Hilfsfunktion gegen XSS (Cross-Site Scripting)
 function escapeHtml(text) {
     if (typeof text !== 'string') return text;
-    return text.replace(/[&<>"']/g, function(m) {
-        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+    return text.replace(/[&<>"'/]/g, function(m) {
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;', '/': '&#x2F;' };
         return map[m];
     });
 }
@@ -32,12 +32,12 @@ if (urlData) {
     try {
         shortData = JSON.parse(urlData);
         localStorage.setItem('dako_saved_route', urlData);
-    } catch(e) { console.error('Fehler beim Lesen der URL-Daten', e); }
+    } catch(e) { console.error('JSON-Fehler in URL:', e); }
 } else {
     // Fall 2: Keine URL-Daten -> Schauen ob wir was gespeichert haben (Offline-Modus)
     const savedData = localStorage.getItem('dako_saved_route');
     if (savedData) {
-        try { shortData = JSON.parse(savedData); } catch(e) {}
+        try { shortData = JSON.parse(savedData); } catch(e) { console.warn('Gespeicherte Daten defekt:', e); }
     }
 }
 
@@ -83,7 +83,7 @@ if (shortData) {
         });
 
         stadiaLayer.addTo(map); // Standard-Layer aktivieren
-        L.control.layers({ "Stadtplan": stadiaLayer, "ÖPNV (Transport)": transportLayer }, null, { position: 'topright' }).addTo(map);
+        L.control.layers({ "Stadtplan": stadiaLayer, "ÖPNV": transportLayer }, null, { position: 'topright' }).addTo(map);
         
         let userLocMarker, userLocCircle, locateBtnElement;
 
@@ -182,7 +182,8 @@ if (shortData) {
             // Prüfen, ob der Gang vergangen ist
             let isPast = false;
             if (eventDate) {
-                const timeMatch = times[i].match(/(\d{1,2}):(\d{2})/);
+                // Fix: Sicherer Zugriff, falls times[i] undefined ist (bei mehr Stationen als Zeiten)
+                const timeMatch = (times[i] || '').match(/(\d{1,2}):(\d{2})/);
                 if (timeMatch) {
                     const courseDate = new Date(eventDate);
                     courseDate.setHours(parseInt(timeMatch[1]), parseInt(timeMatch[2]));
@@ -266,7 +267,8 @@ if (shortData) {
             </div>`;
         }).join('');
 
-        list.innerHTML = getInstallBannerHtml() + listItemsHtml;
+        // Fix: Prüfen ob Funktion existiert (falls pwa.js nicht geladen wurde)
+        list.innerHTML = (typeof getInstallBannerHtml === 'function' ? getInstallBannerHtml() : '') + listItemsHtml;
     };
 
     // 3. Check gegen blocked.json (wenn Token vorhanden)

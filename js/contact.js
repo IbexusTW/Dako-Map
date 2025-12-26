@@ -32,12 +32,21 @@ window.closeContactModal = () => {
 // Speichern & Generieren
 window.saveContact = (e) => {
     e.preventDefault();
-    const data = {
-        name: document.getElementById('contact-name').value,
-        phone: document.getElementById('contact-phone').value,
-        email: document.getElementById('contact-email').value,
-        insta: document.getElementById('contact-insta').value
-    };
+    const name = document.getElementById('contact-name').value.trim();
+    const phone = document.getElementById('contact-phone').value.trim();
+    const email = document.getElementById('contact-email').value.trim();
+    const insta = document.getElementById('contact-insta').value.trim();
+
+    if (!name) {
+        alert("Bitte gib deinen Namen an.");
+        return;
+    }
+    if (!phone && !email && !insta) {
+        alert("Bitte gib mindestens eine Kontaktmöglichkeit an (Handy, E-Mail oder Instagram).");
+        return;
+    }
+
+    const data = { name, phone, email, insta };
     
     localStorage.setItem('dako_contact', JSON.stringify(data));
     showQrCode(data);

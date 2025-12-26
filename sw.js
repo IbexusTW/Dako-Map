@@ -1,10 +1,10 @@
-const CACHE_NAME = 'dako-map-v30';
+const CACHE_NAME = 'dako-map-v33';
 const TILE_CACHE = 'dako-tiles-v1';
 
 // Dateien, die für die Grundfunktion notwendig sind
 const STATIC_ASSETS = [
     './',
-    './maps.htm',
+    './index.htm',
     './manifest.json',
     './css/style.css',
     './js/map.js',

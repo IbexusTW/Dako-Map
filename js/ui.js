@@ -43,7 +43,10 @@ function endDrag(e) {
     if (Math.abs(h - startHeight) < 5) toggleList();
     else if (h < 150) collapseList();
     else openListState();
-    setTimeout(() => { if(window.map) window.map.invalidateSize(); }, 350);
+    // Fix: Sicherer Check, ob map existiert und die Methode hat
+    setTimeout(() => { 
+        if(window.map && typeof window.map.invalidateSize === 'function') window.map.invalidateSize(); 
+    }, 350);
 }
 
 function collapseList() { 
